@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F6F1EA">
+<title>Nail Checkout</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💅</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F6F1EA; --card:#FFFDF9; --ink:#2A2522; --muted:#7A716A; --line:#E2D9CE;
+  --accent:#C8352B; --accent-ink:#fff; --soft:#F9E4DF; --paper:#fff; --paper-ink:#1b1b1b;
+  --r:14px; --sans:"Be Vietnam Pro",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#1C1816; --card:#282320; --ink:#EFE7DD; --muted:#A39A91; --line:#3A332F;
+  --accent:#E8594E; --accent-ink:#1C1816; --soft:#43241F; --paper:#F4EFE6; --paper-ink:#1b1b1b;
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 var(--sans)}
+body{min-height:100dvh;padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 0 10px}
+header h1{font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0}
+header small{display:block;color:var(--muted);font-weight:400;font-size:13px;letter-spacing:0}
+.icon-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:18px}
+h2{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-weight:500}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.svc{position:relative;text-align:left;padding:14px;border-radius:var(--r);border:1px solid var(--line);background:var(--card);min-height:86px;transition:transform .12s ease,border-color .12s ease}
+.svc:active{transform:scale(.97)}
+.svc b{display:block;font-weight:600;font-size:15px;line-height:1.25;padding-right:26px}
+.svc span{color:var(--muted);font-size:14px}
+.svc.on{border-color:var(--accent);background:var(--soft)}
+.qty{position:absolute;top:10px;right:10px;min-width:24px;height:24px;padding:0 6px;border-radius:12px;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;display:grid;place-items:center}
+.minus{position:absolute;bottom:8px;right:8px;width:36px;height:36px;border-radius:50%;border:1px solid var(--accent);color:var(--accent);background:var(--card);font-size:20px;line-height:1}
+.rowin{display:flex;gap:8px;margin-top:10px}
+.rowin input{flex:1;min-width:0}
+input,select{height:48px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card);width:100%}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.add{flex:0 0 auto;height:48px;padding:0 18px;border-radius:12px;background:var(--ink);color:var(--bg);font-weight:600}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:12px 0 calc(12px + env(safe-area-inset-bottom))}
+.bar .wrap{display:flex;align-items:center;gap:14px}
+.total{flex:1}
+.total small{display:block;color:var(--muted);font-size:12px}
+.total strong{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.cta{height:56px;padding:0 26px;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:17px}
+.cta:disabled{opacity:.35}
+.cta.wide{width:100%;margin-top:16px}
+.ghost{width:100%;height:52px;border-radius:14px;border:1px solid var(--line);background:var(--card);font-weight:600;margin-top:10px}
+.back{color:var(--muted);font-weight:500;min-height:44px;padding:0}
+.paper-wrap{display:flex;justify-content:center;margin-top:6px}
+.paper{background:var(--paper);color:var(--paper-ink);font-family:var(--mono);padding:18px 14px 8px;box-shadow:0 10px 30px rgba(0,0,0,.12);
+  -webkit-mask:conic-gradient(from -45deg at bottom,#0000,#000 1deg 89deg,#0000 90deg) 50%/12px 100%;mask:conic-gradient(from -45deg at bottom,#0000,#000 1deg 89deg,#0000 90deg) 50%/12px 100%;max-width:100%;overflow:hidden}
+.paper div{white-space:pre;line-height:1.35}
+.paper .c{text-align:center}.paper .r{text-align:right}.paper .b{font-weight:700}
+.paper .f1{transform:scaleY(1.7);transform-origin:center;margin:.5em 0}
+.paper .f2{font-size:2em;line-height:1.2}
+.paper .f4{font-size:.8em}
+.hint{color:var(--muted);font-size:13px;margin:14px 2px 0}
+.hint a{color:var(--accent)}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-end;z-index:5}
+.sheet.open{display:flex}
+.sheet > div{background:var(--bg);width:100%;max-height:92dvh;overflow:auto;border-radius:22px 22px 0 0;padding:6px 0 calc(24px + env(safe-area-inset-bottom))}
+label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
+ol.steps{padding-left:20px;margin:8px 0 0;font-size:14px;color:var(--muted)}
+ol.steps li{margin:4px 0}
+[hidden]{display:none!important}
+@media (min-width:520px){.grid{grid-template-columns:1fr 1fr 1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span id="shopName">Nail Salon</span><small id="today"></small></h1>
+    <button class="icon-btn" id="openSettings" aria-label="Settings">⚙︎</button>
+  </header>
+
+  <main id="checkout">
+    <h2>Technician</h2>
+    <div class="chips" id="techs"></div>
+
+    <h2>Services</h2>
+    <div class="grid" id="services"></div>
+    <div class="rowin">
+      <input id="cName" placeholder="Other service" aria-label="Other service name" maxlength="40">
+      <input id="cPrice" placeholder="$" inputmode="decimal" aria-label="Price" style="flex:0 0 88px">
+      <button class="add" id="cAdd">Add</button>
+    </div>
+
+    <h2>Tip</h2>
+    <div class="chips" id="tips"></div>
+    <div class="rowin" id="tipCustomRow" hidden><input id="tipCustom" inputmode="decimal" placeholder="Tip amount $" aria-label="Custom tip"></div>
+
+    <h2>Paid by</h2>
+    <div class="chips" id="pays"></div>
+  </main>
+
+  <main id="receipt" hidden>
+    <button class="back" id="back">← Edit sale</button>
+    <div class="paper-wrap"><div class="paper" id="paper" aria-label="Receipt preview"></div></div>
+    <button class="cta wide" id="print">🖨 Print receipt</button>
+    <button class="ghost" id="share">Share receipt as image</button>
+    <button class="ghost" id="newSale">New sale</button>
+    <p class="hint">Print opens the Thermer app, which sends the receipt to your Bluetooth printer. Nothing happens? Thermer may not be installed. See setup in ⚙︎ Settings.</p>
+  </main>
+</div>
+
+<div class="bar" id="bar"><div class="wrap">
+  <div class="total"><small id="sumLine">No services yet</small><strong id="sumTotal">$0.00</strong></div>
+  <button class="cta" id="go" disabled>Checkout</button>
+</div></div>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Settings"><div><div class="wrap">
+  <header><h1>Settings</h1><button class="icon-btn" id="closeSettings" aria-label="Close">✕</button></header>
+  <label for="sShop">Salon name</label><input id="sShop" maxlength="40">
+  <label for="sAddr">Address</label><input id="sAddr" maxlength="80">
+  <label for="sPhone">Phone</label><input id="sPhone" maxlength="30" inputmode="tel">
+  <label for="sTechs">Technicians (comma separated)</label><input id="sTechs">
+  <label for="sTax">Tax %</label><input id="sTax" inputmode="decimal">
+  <label for="sW">Printer paper</label>
+  <select id="sW"><option value="58">58 mm (small, 32 characters)</option><option value="80">80 mm (wide, 48 characters)</option></select>
+  <label for="sNote">Footer line</label><input id="sNote" maxlength="60">
+  <h2>Printer setup (one time)</h2>
+  <ol class="steps">
+    <li>Turn the printer on. Install <a href="https://apps.apple.com/app/id1599863946" target="_blank" rel="noopener">Thermer</a> on this phone or iPad.</li>
+    <li>In Thermer, connect your Bluetooth printer (allow Bluetooth when asked).</li>
+    <li>Tap the test button below. A sample receipt should print.</li>
+  </ol>
+  <button class="ghost" id="testPrint">Print a test receipt</button>
+  <button class="cta wide" id="saveSettings">Save</button>
+</div></div></div>
+
+<script>
+const MENU=[["Manicure",25],["Gel Manicure",40],["Pedicure",35],["Deluxe Pedicure",55],["Full Set Acrylic",60],["Acrylic Fill",40],["Dip Powder",50],["Polish Change",15],["Nail Art",10],["Eyebrow Wax",12]];
+const PAYS=["Cash","Card","Zelle","Venmo"];
+const TIPS=[["No tip",0],["15%",15],["18%",18],["20%",20],["Custom",-1]];
+const DEF={shop:"Lucky Nails",addr:"",phone:"",techs:"Hanh, Linh, Tuyet",tax:0,w:58,note:"Thank you! See you soon."};
+const $=id=>document.getElementById(id);
+const money=n=>"$"+(Math.round(n*100)/100).toFixed(2);
+
+let S={...DEF};
+try{S={...DEF,...JSON.parse(localStorage.getItem("nail.settings")||"{}")}}catch(e){}
+let cart=new Map(), tech="", tipPct=0, tipCustom=0, pay="Cash", lastEntries=[];
+
+function techList(){return S.techs.split(",").map(s=>s.trim()).filter(Boolean)}
+function subtotal(){let t=0;cart.forEach(v=>t+=v.p*v.q);return t}
+function tip(){return tipPct<0?tipCustom:Math.round(subtotal()*tipPct)/100}
+function total(){return subtotal()*(1+S.tax/100)+tip()}
+
+function chips(el,list,isOn,onTap){
+  el.innerHTML="";
+  list.forEach(item=>{const b=document.createElement("button");b.className="chip";b.textContent=item.label;
+    b.setAttribute("aria-pressed",isOn(item));b.onclick=()=>{onTap(item);render()};el.appendChild(b)});
+}
+function render(){
+  $("shopName").textContent=S.shop||"Nail Salon";
+  $("today").textContent=new Date().toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
+  const tl=techList(); if(!tl.includes(tech)) tech=tl[0]||"";
+  chips($("techs"),tl.map(t=>({label:t})),i=>i.label===tech,i=>tech=i.label);
+  chips($("tips"),TIPS.map(([label,v])=>({label,v})),i=>i.v===tipPct,i=>tipPct=i.v);
+  chips($("pays"),PAYS.map(p=>({label:p})),i=>i.label===pay,i=>pay=i.label);
+  $("tipCustomRow").hidden=tipPct>=0;
+
+  const g=$("services"); g.innerHTML="";
+  const names=[...MENU.map(m=>m[0]),...[...cart.keys()].filter(k=>!MENU.some(m=>m[0]===k))];
+  names.forEach(n=>{
+    const price=(MENU.find(m=>m[0]===n)||[0,cart.get(n)?.p])[1], item=cart.get(n);
+    const d=document.createElement("div");d.className="svc"+(item?" on":"");d.setAttribute("role","button");d.tabIndex=0;
+    d.setAttribute("aria-label",`Add ${n}, ${money(price)}`);
+    d.innerHTML=`<b></b><span>${money(price)}</span>`;d.querySelector("b").textContent=n;
+    const add=()=>{cart.set(n,{p:price,q:(item?.q||0)+1});render()};
+    d.onclick=add; d.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();add()}};
+    if(item){
+      const q=document.createElement("i");q.className="qty";q.style.fontStyle="normal";q.textContent=item.q;d.appendChild(q);
+      const m=document.createElement("button");m.className="minus";m.textContent="−";m.setAttribute("aria-label",`Remove one ${n}`);
+      m.onclick=e=>{e.stopPropagation();item.q>1?cart.set(n,{p:price,q:item.q-1}):cart.delete(n);render()};d.appendChild(m);
+    }
+    g.appendChild(d);
+  });
+  let count=0;cart.forEach(v=>count+=v.q);
+  $("sumLine").textContent=count?`${count} service${count>1?"s":""}${tip()?" + "+money(tip())+" tip":""}`:"No services yet";
+  $("sumTotal").textContent=money(total());
+  $("go").disabled=!count;
+}
+
+$("cAdd").onclick=()=>{const n=$("cName").value.trim(),p=parseFloat($("cPrice").value);
+  if(!n||!(p>=0))return; cart.set(n,{p,q:(cart.get(n)?.q||0)+1});$("cName").value=$("cPrice").value="";render()};
+$("tipCustom").oninput=e=>{tipCustom=Math.max(0,parseFloat(e.target.value)||0);
+  $("sumTotal").textContent=money(total());$("sumLine").textContent=$("sumLine").textContent.replace(/ \+ .*$/,"")+(tipCustom?" + "+money(tipCustom)+" tip":"")};
+
+/* ---------- receipt ---------- */
+/* Entries follow Thermer's format: type 0 = text; bold 0/1; align 0 left,1 center,2 right;
+   format 0 normal, 1 double height, 2 double height+width, 3 double width, 4 small. */
+function buildEntries(d){
+  const w=+d.w===80?48:32, out=[];
+  const text=(content,o={})=>{const e={type:0,content:content||" ",bold:o.bold?1:0,align:o.align||0};if(o.format)e.format=o.format;out.push(e)};
+  const row=(l,r)=>{const gap=w-l.length-r.length;return gap>=1?l+" ".repeat(gap)+r:l.slice(0,Math.max(0,w-r.length-1))+" "+r};
+  const line=()=>text("-".repeat(w));
+  const shop=d.shop||"Nail Salon";
+  text(shop,{bold:1,align:1,format:shop.length<=w/2?2:1});
+  if(d.addr)text(d.addr,{align:1}); if(d.phone)text(d.phone,{align:1});
+  line(); text(row("Receipt #"+d.id,d.ts)); if(d.tech)text(row("Technician",d.tech)); line();
+  let sub=0; d.items.forEach(it=>{const amt=it.p*it.q;sub+=amt;text(row((it.q>1?it.q+"x ":"")+it.n,money(amt)))});
+  line();
+  const tax=sub*d.tax/100;
+  text(row("Subtotal",money(sub))); if(tax>0)text(row("Tax "+d.tax+"%",money(tax))); if(d.tip>0)text(row("Tip",money(d.tip)));
+  text(row("TOTAL",money(sub+tax+d.tip)),{bold:1,format:1});
+  if(d.pay)text(row("Paid by",d.pay)); line();
+  text(d.note||"Thank you!",{align:1}); text(" ");text(" ");text(" ");
+  return out;
+}
+function saleData(){
+  const now=new Date();
+  return {shop:S.shop,addr:S.addr,phone:S.phone,note:S.note,w:+S.w,tax:+S.tax,tech,pay,tip:tip(),
+    id:now.getTime().toString(36).slice(-5).toUpperCase(),
+    ts:now.toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"})+" "+now.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}),
+    items:[...cart].map(([n,v])=>({n,p:v.p,q:v.q}))};
+}
+function drawPaper(entries){
+  const p=$("paper");p.innerHTML="";p.style.fontSize=(+S.w===80?10.5:14)+"px";p.style.width=`calc(${+S.w===80?48:32}ch + 28px)`;
+  entries.forEach(e=>{const d=document.createElement("div");
+    d.className=[e.align==1?"c":e.align==2?"r":"",e.bold?"b":"",e.format?"f"+e.format:""].join(" ");d.textContent=e.content;p.appendChild(d)});
+}
+function openReceipt(){
+  lastEntries=buildEntries(saleData()); drawPaper(lastEntries);
+  $("checkout").hidden=true;$("bar").hidden=true;$("receipt").hidden=false;scrollTo(0,0);
+}
+$("go").onclick=openReceipt;
+$("back").onclick=()=>{$("receipt").hidden=true;$("checkout").hidden=false;$("bar").hidden=false};
+$("newSale").onclick=()=>{cart.clear();tipPct=0;tipCustom=0;$("tipCustom").value="";$("back").onclick();render();scrollTo(0,0)};
+
+/* Print: hand the receipt to the Thermer app, which sends it to the Bluetooth printer.
+   Link format from Thermer's iOS sample code: thermer://?data=<JSON keyed "0","1","2"...> */
+function sendToPrinter(entries){
+  const json=JSON.stringify(Object.fromEntries(entries.map((e,i)=>[i,e])));
+  location.href="thermer://?data="+encodeURIComponent(json);
+}
+$("print").onclick=()=>sendToPrinter(lastEntries);
+$("testPrint").onclick=()=>sendToPrinter(buildEntries({shop:$("sShop").value||"Lucky Nails",addr:$("sAddr").value,phone:$("sPhone").value,
+  note:"Test print OK",w:+$("sW").value,tax:0,tech:"Demo",pay:"Cash",tip:15,id:"TEST",ts:"Test print",items:[{n:"Gel Manicure",p:40,q:1},{n:"Pedicure",p:35,q:1}]}));
+
+/* Backup path: make a picture of the receipt, share it to Thermer (or anywhere). */
+async function receiptImage(){
+  const cols=+S.w===80?48:32, W=+S.w===80?576:384, c=document.createElement("canvas"), x=c.getContext("2d");
+  await document.fonts.ready;
+  const font=(px,b)=>`${b?700:400} ${px}px "IBM Plex Mono",monospace`;
+  x.font=font(20);const px=20*(W-16)/x.measureText("M".repeat(cols)).width, lh=px*1.4;
+  const hOf=e=>e.format==2?lh*2:e.format==1?lh*1.9:lh;
+  c.width=W;c.height=Math.ceil(lastEntries.reduce((s,e)=>s+hOf(e),24));
+  x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.fillStyle="#000";x.textBaseline="top";
+  let y=12;
+  lastEntries.forEach(e=>{const sx=e.format==2?2:1, sy=e.format==2?2:e.format==1?1.8:1;
+    x.font=font(px,e.bold);const tw=x.measureText(e.content).width*sx;
+    const left=e.align==1?(W-tw)/2:e.align==2?W-8-tw:8;
+    x.save();x.translate(left,y);x.scale(sx,sy);x.fillText(e.content,0,0);x.restore();y+=hOf(e)});
+  return new Promise(res=>c.toBlob(res,"image/png"));
+}
+$("share").onclick=async()=>{
+  const file=new File([await receiptImage()],"receipt.png",{type:"image/png"});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:"Receipt"})}catch(e){}}
+  else{const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download="receipt.png";a.click()}
+};
+
+/* ---------- settings ---------- */
+const FIELDS={sShop:"shop",sAddr:"addr",sPhone:"phone",sTechs:"techs",sTax:"tax",sW:"w",sNote:"note"};
+$("openSettings").onclick=()=>{for(const id in FIELDS)$(id).value=S[FIELDS[id]];$("sheet").classList.add("open")};
+$("closeSettings").onclick=()=>$("sheet").classList.remove("open");
+$("sheet").onclick=e=>{if(e.target===$("sheet"))$("closeSettings").onclick()};
+$("saveSettings").onclick=()=>{for(const id in FIELDS)S[FIELDS[id]]=$(id).value.trim();
+  S.tax=Math.min(30,Math.max(0,parseFloat(S.tax)||0));S.w=+S.w===80?80:58;
+  try{localStorage.setItem("nail.settings",JSON.stringify(S))}catch(e){}
+  $("closeSettings").onclick();render();if(!$("receipt").hidden)openReceipt()};
+render();
+</script>
+</body>
+</html>
