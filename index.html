@@ -129,6 +129,10 @@ ol.steps li{margin:4px 0}
   <label for="sW">Printer paper</label>
   <select id="sW"><option value="58">58 mm (small, 32 characters)</option><option value="80">80 mm (wide, 48 characters)</option></select>
   <label for="sNote">Footer line</label><input id="sNote" maxlength="60">
+  <div class="rowin">
+    <div style="flex:1"><label for="sTop">Blank lines at top</label><input id="sTop" inputmode="numeric" min="0" max="10"></div>
+    <div style="flex:1"><label for="sBot">Blank lines at bottom</label><input id="sBot" inputmode="numeric" min="0" max="10"></div>
+  </div>
   <h2>Printer setup (one time)</h2>
   <ol class="steps">
     <li>Turn the printer on. Install <a href="https://apps.apple.com/app/id1599863946" target="_blank" rel="noopener">Thermer</a> on this phone or iPad.</li>
@@ -143,7 +147,7 @@ ol.steps li{margin:4px 0}
 const MENU=[["Manicure",25],["Gel Manicure",40],["Pedicure",35],["Deluxe Pedicure",55],["Full Set Acrylic",60],["Acrylic Fill",40],["Dip Powder",50],["Polish Change",15],["Nail Art",10],["Eyebrow Wax",12]];
 const PAYS=["Cash","Card","Zelle","Venmo"];
 const TIPS=[["No tip",0],["15%",15],["18%",18],["20%",20],["Custom",-1]];
-const DEF={shop:"Lucky Nails",addr:"",phone:"",techs:"Hanh, Linh, Tuyet",tax:0,w:58,note:"Thank you! See you soon."};
+const DEF={shop:"Lucky Nails",addr:"",phone:"",techs:"Hanh, Linh, Tuyet",tax:0,w:58,note:"Thank you! See you soon.",top:2,bottom:3};
 const $=id=>document.getElementById(id);
 const money=n=>"$"+(Math.round(n*100)/100).toFixed(2);
 
@@ -205,7 +209,9 @@ function buildEntries(d){
   const text=(content,o={})=>{const e={type:0,content:content||" ",bold:o.bold?1:0,align:o.align||0};if(o.format)e.format=o.format;out.push(e)};
   const row=(l,r)=>{const gap=w-l.length-r.length;return gap>=1?l+" ".repeat(gap)+r:l.slice(0,Math.max(0,w-r.length-1))+" "+r};
   const line=()=>text("-".repeat(w));
+  const blanks=n=>{for(let i=0;i<n;i++)text(" ")};
   const shop=d.shop||"Nail Salon";
+  blanks(d.top);
   text(shop,{bold:1,align:1,format:shop.length<=w/2?2:1});
   if(d.addr)text(d.addr,{align:1}); if(d.phone)text(d.phone,{align:1});
   line(); text(row("Receipt #"+d.id,d.ts)); if(d.tech)text(row("Technician",d.tech)); line();
@@ -215,12 +221,12 @@ function buildEntries(d){
   text(row("Subtotal",money(sub))); if(tax>0)text(row("Tax "+d.tax+"%",money(tax))); if(d.tip>0)text(row("Tip",money(d.tip)));
   text(row("TOTAL",money(sub+tax+d.tip)),{bold:1,format:1});
   if(d.pay)text(row("Paid by",d.pay)); line();
-  text(d.note||"Thank you!",{align:1}); text(" ");text(" ");text(" ");
+  text(d.note||"Thank you!",{align:1}); blanks(d.bottom);
   return out;
 }
 function saleData(){
   const now=new Date();
-  return {shop:S.shop,addr:S.addr,phone:S.phone,note:S.note,w:+S.w,tax:+S.tax,tech,pay,tip:tip(),
+  return {shop:S.shop,addr:S.addr,phone:S.phone,note:S.note,w:+S.w,tax:+S.tax,top:+S.top,bottom:+S.bottom,tech,pay,tip:tip(),
     id:now.getTime().toString(36).slice(-5).toUpperCase(),
     ts:now.toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"})+" "+now.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}),
     items:[...cart].map(([n,v])=>({n,p:v.p,q:v.q}))};
@@ -241,7 +247,7 @@ $("newSale").onclick=()=>{cart.clear();tipPct=0;tipCustom=0;$("tipCustom").value
 /* Print: hand the receipt to the Thermer app, which sends it to the Bluetooth printer.
    Link format from Thermer's iOS sample code: thermer://?data=<JSON keyed "0","1","2"...> */
 /* Thermer's free plan prints at most 5 entries per receipt, so the lines are packed into
-   4 blocks: shop name, body, TOTAL, footer. Every body line is padded to the full paper width,
+   at most 5 blocks: top spacing, shop name, body, TOTAL, footer. Every body line is padded to the full paper width,
    so each row lands on its own printed line whether or not the app keeps the "\n" between them. */
 function packEntries(entries,w){
   const fit=e=>{const s=e.content.slice(0,w),g=w-s.length,l=Math.floor(g/2);
@@ -257,7 +263,7 @@ function sendToPrinter(entries,w){
 }
 $("print").onclick=()=>sendToPrinter(lastEntries,S.w);
 $("testPrint").onclick=()=>sendToPrinter(buildEntries({shop:$("sShop").value||"Lucky Nails",addr:$("sAddr").value,phone:$("sPhone").value,
-  note:"Test print OK",w:+$("sW").value,tax:0,tech:"Demo",pay:"Cash",tip:15,id:"TEST",ts:"Test print",items:[{n:"Gel Manicure",p:40,q:1},{n:"Pedicure",p:35,q:1}]}),$("sW").value);
+  note:"Test print OK",w:+$("sW").value,top:+$("sTop").value||0,bottom:+$("sBot").value||0,tax:0,tech:"Demo",pay:"Cash",tip:15,id:"TEST",ts:"Test print",items:[{n:"Gel Manicure",p:40,q:1},{n:"Pedicure",p:35,q:1}]}),$("sW").value);
 
 /* Backup path: make a picture of the receipt, share it to Thermer (or anywhere). */
 async function receiptImage(){
@@ -282,12 +288,13 @@ $("share").onclick=async()=>{
 };
 
 /* ---------- settings ---------- */
-const FIELDS={sShop:"shop",sAddr:"addr",sPhone:"phone",sTechs:"techs",sTax:"tax",sW:"w",sNote:"note"};
+const FIELDS={sShop:"shop",sAddr:"addr",sPhone:"phone",sTechs:"techs",sTax:"tax",sW:"w",sNote:"note",sTop:"top",sBot:"bottom"};
 $("openSettings").onclick=()=>{for(const id in FIELDS)$(id).value=S[FIELDS[id]];$("sheet").classList.add("open")};
 $("closeSettings").onclick=()=>$("sheet").classList.remove("open");
 $("sheet").onclick=e=>{if(e.target===$("sheet"))$("closeSettings").onclick()};
 $("saveSettings").onclick=()=>{for(const id in FIELDS)S[FIELDS[id]]=$(id).value.trim();
   S.tax=Math.min(30,Math.max(0,parseFloat(S.tax)||0));S.w=+S.w===80?80:58;
+  const lines=v=>Math.min(10,Math.max(0,parseInt(v,10)||0));S.top=lines(S.top);S.bottom=lines(S.bottom);
   try{localStorage.setItem("nail.settings",JSON.stringify(S))}catch(e){}
   $("closeSettings").onclick();render();if(!$("receipt").hidden)openReceipt()};
 render();
