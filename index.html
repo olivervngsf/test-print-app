@@ -110,7 +110,7 @@ ol.steps li{margin:4px 0}
     <button class="cta wide" id="print">🖨 Print receipt</button>
     <button class="ghost" id="share">Share receipt as image</button>
     <button class="ghost" id="newSale">New sale</button>
-    <p class="hint">Print opens the Thermer app, which sends the receipt to your Bluetooth printer. Nothing happens? Thermer may not be installed. See setup in ⚙︎ Settings.</p>
+    <p class="hint">Print opens the Thermer app, which sends the receipt to your Bluetooth printer. Works on the free Thermer plan (the receipt is packed into 4 blocks). Nothing happens? Thermer may not be installed. See setup in ⚙︎ Settings.</p>
   </main>
 </div>
 
@@ -240,13 +240,24 @@ $("newSale").onclick=()=>{cart.clear();tipPct=0;tipCustom=0;$("tipCustom").value
 
 /* Print: hand the receipt to the Thermer app, which sends it to the Bluetooth printer.
    Link format from Thermer's iOS sample code: thermer://?data=<JSON keyed "0","1","2"...> */
-function sendToPrinter(entries){
-  const json=JSON.stringify(Object.fromEntries(entries.map((e,i)=>[i,e])));
+/* Thermer's free plan prints at most 5 entries per receipt, so the lines are packed into
+   4 blocks: shop name, body, TOTAL, footer. Every body line is padded to the full paper width,
+   so each row lands on its own printed line whether or not the app keeps the "\n" between them. */
+function packEntries(entries,w){
+  const fit=e=>{const s=e.content.slice(0,w),g=w-s.length,l=Math.floor(g/2);
+    return e.align==1?" ".repeat(l)+s+" ".repeat(g-l):e.align==2?" ".repeat(g)+s:s+" ".repeat(g)};
+  const out=[],buf=[],flush=()=>{if(buf.length){out.push({type:0,content:buf.join("\n"),bold:0,align:0});buf.length=0}};
+  entries.forEach(e=>{if(e.bold||e.format){flush();out.push(e)}else buf.push(fit(e))});
+  flush();return out;
+}
+function sendToPrinter(entries,w){
+  const packed=packEntries(entries,+w===80?48:32);
+  const json=JSON.stringify(Object.fromEntries(packed.map((e,i)=>[i,e])));
   location.href="thermer://?data="+encodeURIComponent(json);
 }
-$("print").onclick=()=>sendToPrinter(lastEntries);
+$("print").onclick=()=>sendToPrinter(lastEntries,S.w);
 $("testPrint").onclick=()=>sendToPrinter(buildEntries({shop:$("sShop").value||"Lucky Nails",addr:$("sAddr").value,phone:$("sPhone").value,
-  note:"Test print OK",w:+$("sW").value,tax:0,tech:"Demo",pay:"Cash",tip:15,id:"TEST",ts:"Test print",items:[{n:"Gel Manicure",p:40,q:1},{n:"Pedicure",p:35,q:1}]}));
+  note:"Test print OK",w:+$("sW").value,tax:0,tech:"Demo",pay:"Cash",tip:15,id:"TEST",ts:"Test print",items:[{n:"Gel Manicure",p:40,q:1},{n:"Pedicure",p:35,q:1}]}),$("sW").value);
 
 /* Backup path: make a picture of the receipt, share it to Thermer (or anywhere). */
 async function receiptImage(){
