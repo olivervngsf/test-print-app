@@ -110,7 +110,7 @@ ol.steps li{margin:4px 0}
     <button class="cta wide" id="print">🖨 Print receipt</button>
     <button class="ghost" id="share">Share receipt as image</button>
     <button class="ghost" id="newSale">New sale</button>
-    <p class="hint">Print opens the Thermer app, which sends the receipt to your Bluetooth printer as one picture, so spacing and columns print exactly as shown. If Thermer complains, switch “Print as” to Text in ⚙︎ Settings, or tap Share and pick Thermer. Nothing happens? Thermer may not be installed. See setup in ⚙︎ Settings.</p>
+    <p class="hint">Print opens the Thermer app, which sends the receipt to your Bluetooth printer: the salon name as text and the rest as a picture, so columns and the bottom margin print exactly as shown. If Thermer complains, switch “Print as” to Text in ⚙︎ Settings, or tap Share and pick Thermer. Nothing happens? Thermer may not be installed. See setup in ⚙︎ Settings.</p>
   </main>
 </div>
 
@@ -129,10 +129,10 @@ ol.steps li{margin:4px 0}
   <label for="sW">Printer paper</label>
   <select id="sW"><option value="58">58 mm (small, 32 characters)</option><option value="80">80 mm (wide, 48 characters)</option></select>
   <label for="sMode">Print as</label>
-  <select id="sMode"><option value="image">Picture (exact layout, recommended)</option><option value="text">Text (compact, may run together)</option></select>
+  <select id="sMode"><option value="hybrid">Text header + picture body (fastest, recommended)</option><option value="image">One picture (exact layout, slower)</option><option value="text">Text only (may run together)</option></select>
   <label for="sNote">Footer line</label><input id="sNote" maxlength="60">
   <div class="rowin">
-    <div style="flex:1"><label for="sTop">Blank lines at top</label><input id="sTop" inputmode="numeric" min="0" max="10"></div>
+    <div style="flex:1"><label for="sTop">Blank lines at top (picture mode)</label><input id="sTop" inputmode="numeric" min="0" max="10"></div>
     <div style="flex:1"><label for="sBot">Blank lines at bottom</label><input id="sBot" inputmode="numeric" min="0" max="10"></div>
   </div>
   <h2>Printer setup (one time)</h2>
@@ -149,7 +149,7 @@ ol.steps li{margin:4px 0}
 const MENU=[["Manicure",25],["Gel Manicure",40],["Pedicure",35],["Deluxe Pedicure",55],["Full Set Acrylic",60],["Acrylic Fill",40],["Dip Powder",50],["Polish Change",15],["Nail Art",10],["Eyebrow Wax",12]];
 const PAYS=["Cash","Card","Zelle","Venmo"];
 const TIPS=[["No tip",0],["15%",15],["18%",18],["20%",20],["Custom",-1]];
-const DEF={shop:"Lucky Nails",addr:"",phone:"",techs:"Hanh, Linh, Tuyet",tax:0,w:58,note:"Thank you! See you soon.",top:2,bottom:3,mode:"image"};
+const DEF={shop:"Lucky Nails",addr:"",phone:"",techs:"Hanh, Linh, Tuyet",tax:0,w:58,note:"Thank you! See you soon.",top:2,bottom:3,mode:"hybrid"};
 const $=id=>document.getElementById(id);
 const money=n=>"$"+(Math.round(n*100)/100).toFixed(2);
 
@@ -261,9 +261,15 @@ function packEntries(entries,w){
 /* Default: send the whole receipt as one picture (entry type 1), so spacing, columns and the
    top/bottom margins print exactly as previewed. Thermer squashes spaces and line breaks in
    text entries, which is why the text mode is only a fallback. */
+/* "hybrid" uses the 3 entries the free plan allows: one blank text line, the shop name as
+   printer-font text (fast), and a shorter picture of everything below it. */
 async function sendToPrinter(entries,w){
   let packed;
   if(S.mode==="text") packed=packEntries(entries,+w===80?48:32);
+  else if(S.mode==="hybrid"){
+    const i=entries.findIndex(e=>e.format&&e.align==1), head=entries[i], url=await receiptPng(entries.slice(i+1),w);
+    packed=[{type:0,content:" ",bold:0,align:0},head,{type:1,path:url,content:url,align:1}];
+  }
   else{const url=await receiptPng(entries,w);packed=[{type:1,path:url,content:url,align:1}]}
   const json=JSON.stringify(Object.fromEntries(packed.map((e,i)=>[i,e])));
   location.href="thermer://?data="+encodeURIComponent(json);
@@ -321,7 +327,7 @@ $("closeSettings").onclick=()=>$("sheet").classList.remove("open");
 $("sheet").onclick=e=>{if(e.target===$("sheet"))$("closeSettings").onclick()};
 $("saveSettings").onclick=()=>{for(const id in FIELDS)S[FIELDS[id]]=$(id).value.trim();
   S.tax=Math.min(30,Math.max(0,parseFloat(S.tax)||0));S.w=+S.w===80?80:58;
-  const lines=v=>Math.min(10,Math.max(0,parseInt(v,10)||0));S.top=lines(S.top);S.bottom=lines(S.bottom);S.mode=S.mode==="text"?"text":"image";
+  const lines=v=>Math.min(10,Math.max(0,parseInt(v,10)||0));S.top=lines(S.top);S.bottom=lines(S.bottom);S.mode=["text","image"].includes(S.mode)?S.mode:"hybrid";
   try{localStorage.setItem("nail.settings",JSON.stringify(S))}catch(e){}
   $("closeSettings").onclick();render();if(!$("receipt").hidden)openReceipt()};
 render();
