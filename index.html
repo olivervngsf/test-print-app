@@ -276,12 +276,13 @@ $("testPrint").onclick=()=>sendToPrinter(buildEntries({shop:$("sShop").value||"L
 function receiptCanvas(entries,w){
   const cols=+w===80?48:32, W=+w===80?576:384, c=document.createElement("canvas"), x=c.getContext("2d");
   const font=(px,b)=>`${b?700:400} ${px}px "IBM Plex Mono",monospace`;
-  x.font=font(20);const px=20*(W-16)/x.measureText("M".repeat(cols)).width, lh=px*1.4;
-  const hOf=e=>e.format==2?lh*2:e.format==1?lh*1.9:lh;
-  c.width=W;c.height=Math.ceil(entries.reduce((s,e)=>s+hOf(e),24));
+  /* fewer pixel rows = faster Bluetooth print: tight line spacing, minimal padding */
+  x.font=font(20);const px=20*(W-16)/x.measureText("M".repeat(cols)).width, lh=px*1.15;
+  const hOf=e=>e.format==2?lh*2:e.format==1?lh*1.5:lh;
+  c.width=W;c.height=Math.ceil(entries.reduce((s,e)=>s+hOf(e),8));
   x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.fillStyle="#000";x.textBaseline="top";
-  let y=12;
-  entries.forEach(e=>{const sx=e.format==2?2:1, sy=e.format==2?2:e.format==1?1.8:1;
+  let y=4;
+  entries.forEach(e=>{const sx=e.format==2?2:1, sy=e.format==2?1.9:e.format==1?1.45:1;
     x.font=font(px,e.bold);const tw=x.measureText(e.content).width*sx;
     const left=e.align==1?(W-tw)/2:e.align==2?W-8-tw:8;
     x.save();x.translate(left,y);x.scale(sx,sy);x.fillText(e.content,0,0);x.restore();y+=hOf(e)});
