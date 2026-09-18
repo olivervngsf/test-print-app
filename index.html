@@ -110,7 +110,7 @@ ol.steps li{margin:4px 0}
     <button class="cta wide" id="print">🖨 Print receipt</button>
     <button class="ghost" id="share">Share receipt as image</button>
     <button class="ghost" id="newSale">New sale</button>
-    <p class="hint">Print opens the Thermer app, which sends the receipt to your Bluetooth printer. Works on the free Thermer plan (the receipt is packed into 4 blocks). Nothing happens? Thermer may not be installed. See setup in ⚙︎ Settings.</p>
+    <p class="hint">Print opens the Thermer app, which sends the receipt to your Bluetooth printer as one picture, so spacing and columns print exactly as shown. If Thermer complains, switch “Print as” to Text in ⚙︎ Settings, or tap Share and pick Thermer. Nothing happens? Thermer may not be installed. See setup in ⚙︎ Settings.</p>
   </main>
 </div>
 
@@ -128,6 +128,8 @@ ol.steps li{margin:4px 0}
   <label for="sTax">Tax %</label><input id="sTax" inputmode="decimal">
   <label for="sW">Printer paper</label>
   <select id="sW"><option value="58">58 mm (small, 32 characters)</option><option value="80">80 mm (wide, 48 characters)</option></select>
+  <label for="sMode">Print as</label>
+  <select id="sMode"><option value="image">Picture (exact layout, recommended)</option><option value="text">Text (compact, may run together)</option></select>
   <label for="sNote">Footer line</label><input id="sNote" maxlength="60">
   <div class="rowin">
     <div style="flex:1"><label for="sTop">Blank lines at top</label><input id="sTop" inputmode="numeric" min="0" max="10"></div>
@@ -147,7 +149,7 @@ ol.steps li{margin:4px 0}
 const MENU=[["Manicure",25],["Gel Manicure",40],["Pedicure",35],["Deluxe Pedicure",55],["Full Set Acrylic",60],["Acrylic Fill",40],["Dip Powder",50],["Polish Change",15],["Nail Art",10],["Eyebrow Wax",12]];
 const PAYS=["Cash","Card","Zelle","Venmo"];
 const TIPS=[["No tip",0],["15%",15],["18%",18],["20%",20],["Custom",-1]];
-const DEF={shop:"Lucky Nails",addr:"",phone:"",techs:"Hanh, Linh, Tuyet",tax:0,w:58,note:"Thank you! See you soon.",top:2,bottom:3};
+const DEF={shop:"Lucky Nails",addr:"",phone:"",techs:"Hanh, Linh, Tuyet",tax:0,w:58,note:"Thank you! See you soon.",top:2,bottom:3,mode:"image"};
 const $=id=>document.getElementById(id);
 const money=n=>"$"+(Math.round(n*100)/100).toFixed(2);
 
@@ -256,8 +258,13 @@ function packEntries(entries,w){
   entries.forEach(e=>{if(e.bold||e.format){flush();out.push(e)}else buf.push(fit(e))});
   flush();return out;
 }
-function sendToPrinter(entries,w){
-  const packed=packEntries(entries,+w===80?48:32);
+/* Default: send the whole receipt as one picture (entry type 1), so spacing, columns and the
+   top/bottom margins print exactly as previewed. Thermer squashes spaces and line breaks in
+   text entries, which is why the text mode is only a fallback. */
+async function sendToPrinter(entries,w){
+  let packed;
+  if(S.mode==="text") packed=packEntries(entries,+w===80?48:32);
+  else{const url=await receiptPng(entries,w);packed=[{type:1,path:url,content:url,align:1}]}
   const json=JSON.stringify(Object.fromEntries(packed.map((e,i)=>[i,e])));
   location.href="thermer://?data="+encodeURIComponent(json);
 }
@@ -266,21 +273,40 @@ $("testPrint").onclick=()=>sendToPrinter(buildEntries({shop:$("sShop").value||"L
   note:"Test print OK",w:+$("sW").value,top:+$("sTop").value||0,bottom:+$("sBot").value||0,tax:0,tech:"Demo",pay:"Cash",tip:15,id:"TEST",ts:"Test print",items:[{n:"Gel Manicure",p:40,q:1},{n:"Pedicure",p:35,q:1}]}),$("sW").value);
 
 /* Backup path: make a picture of the receipt, share it to Thermer (or anywhere). */
-async function receiptImage(){
-  const cols=+S.w===80?48:32, W=+S.w===80?576:384, c=document.createElement("canvas"), x=c.getContext("2d");
-  await document.fonts.ready;
+function receiptCanvas(entries,w){
+  const cols=+w===80?48:32, W=+w===80?576:384, c=document.createElement("canvas"), x=c.getContext("2d");
   const font=(px,b)=>`${b?700:400} ${px}px "IBM Plex Mono",monospace`;
   x.font=font(20);const px=20*(W-16)/x.measureText("M".repeat(cols)).width, lh=px*1.4;
   const hOf=e=>e.format==2?lh*2:e.format==1?lh*1.9:lh;
-  c.width=W;c.height=Math.ceil(lastEntries.reduce((s,e)=>s+hOf(e),24));
+  c.width=W;c.height=Math.ceil(entries.reduce((s,e)=>s+hOf(e),24));
   x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.fillStyle="#000";x.textBaseline="top";
   let y=12;
-  lastEntries.forEach(e=>{const sx=e.format==2?2:1, sy=e.format==2?2:e.format==1?1.8:1;
+  entries.forEach(e=>{const sx=e.format==2?2:1, sy=e.format==2?2:e.format==1?1.8:1;
     x.font=font(px,e.bold);const tw=x.measureText(e.content).width*sx;
     const left=e.align==1?(W-tw)/2:e.align==2?W-8-tw:8;
     x.save();x.translate(left,y);x.scale(sx,sy);x.fillText(e.content,0,0);x.restore();y+=hOf(e)});
-  return new Promise(res=>c.toBlob(res,"image/png"));
+  /* thermal heads are 1-bit: snap every pixel to black or white (crisper print, far smaller PNG) */
+  const img=x.getImageData(0,0,c.width,c.height),d=img.data;
+  for(let i=0;i<d.length;i+=4){const v=d[i]<170?0:255;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}
+  x.putImageData(img,0,0);
+  return c;
 }
+/* Encode the canvas as a real 1-bit PNG (canvas.toDataURL only makes 8-bit ones, ~5x larger),
+   so the thermer:// link stays small. Falls back to toDataURL on browsers without CompressionStream. */
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c}return t})();
+async function receiptPng(entries,w){
+  const c=receiptCanvas(entries,w);
+  if(!window.CompressionStream)return c.toDataURL("image/png");
+  const W=c.width,H=c.height,d=c.getContext("2d").getImageData(0,0,W,H).data,rb=Math.ceil(W/8),raw=new Uint8Array((rb+1)*H);
+  for(let y=0;y<H;y++){const o=y*(rb+1)+1;for(let x=0;x<W;x++)if(d[(y*W+x)*4]>127)raw[o+(x>>3)]|=128>>(x&7)}
+  const z=new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer());
+  const be=n=>[n>>>24&255,n>>>16&255,n>>>8&255,n&255];
+  const chunk=(type,data)=>{const td=[...type].map(ch=>ch.charCodeAt(0)).concat([...data]);let crc=-1;for(const b of td)crc=CRC_T[(crc^b)&255]^(crc>>>8);return [...be(data.length),...td,...be((crc^-1)>>>0)]};
+  const png=new Uint8Array([137,80,78,71,13,10,26,10,...chunk("IHDR",[...be(W),...be(H),1,0,0,0,0]),...chunk("IDAT",z),...chunk("IEND",[])]);
+  let b="";for(let i=0;i<png.length;i+=8192)b+=String.fromCharCode.apply(null,png.subarray(i,i+8192));
+  return "data:image/png;base64,"+btoa(b);
+}
+async function receiptImage(){await document.fonts.ready;return new Promise(res=>receiptCanvas(lastEntries,S.w).toBlob(res,"image/png"))}
 $("share").onclick=async()=>{
   const file=new File([await receiptImage()],"receipt.png",{type:"image/png"});
   if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:"Receipt"})}catch(e){}}
@@ -288,13 +314,13 @@ $("share").onclick=async()=>{
 };
 
 /* ---------- settings ---------- */
-const FIELDS={sShop:"shop",sAddr:"addr",sPhone:"phone",sTechs:"techs",sTax:"tax",sW:"w",sNote:"note",sTop:"top",sBot:"bottom"};
+const FIELDS={sShop:"shop",sAddr:"addr",sPhone:"phone",sTechs:"techs",sTax:"tax",sW:"w",sNote:"note",sTop:"top",sBot:"bottom",sMode:"mode"};
 $("openSettings").onclick=()=>{for(const id in FIELDS)$(id).value=S[FIELDS[id]];$("sheet").classList.add("open")};
 $("closeSettings").onclick=()=>$("sheet").classList.remove("open");
 $("sheet").onclick=e=>{if(e.target===$("sheet"))$("closeSettings").onclick()};
 $("saveSettings").onclick=()=>{for(const id in FIELDS)S[FIELDS[id]]=$(id).value.trim();
   S.tax=Math.min(30,Math.max(0,parseFloat(S.tax)||0));S.w=+S.w===80?80:58;
-  const lines=v=>Math.min(10,Math.max(0,parseInt(v,10)||0));S.top=lines(S.top);S.bottom=lines(S.bottom);
+  const lines=v=>Math.min(10,Math.max(0,parseInt(v,10)||0));S.top=lines(S.top);S.bottom=lines(S.bottom);S.mode=S.mode==="text"?"text":"image";
   try{localStorage.setItem("nail.settings",JSON.stringify(S))}catch(e){}
   $("closeSettings").onclick();render();if(!$("receipt").hidden)openReceipt()};
 render();
