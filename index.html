@@ -66,6 +66,8 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);ou
 .paper .f4{font-size:.8em}
 .hint{color:var(--muted);font-size:13px;margin:14px 2px 0}
 .hint a{color:var(--accent)}
+.status{min-height:20px;margin:8px 2px 0;color:var(--muted);font-size:13px}
+.status.ok{color:#27804b}.status.err{color:var(--accent)}
 .sheet{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-end;z-index:5}
 .sheet.open{display:flex}
 .sheet > div{background:var(--bg);width:100%;max-height:92dvh;overflow:auto;border-radius:22px 22px 0 0;padding:6px 0 calc(24px + env(safe-area-inset-bottom))}
@@ -110,7 +112,7 @@ ol.steps li{margin:4px 0}
     <button class="cta wide" id="print">🖨 Print receipt</button>
     <button class="ghost" id="share">Share receipt as image</button>
     <button class="ghost" id="newSale">New sale</button>
-    <p class="hint">Print opens the Thermer app, which sends the receipt to your Bluetooth printer: the salon name as text and the rest as a picture, so columns and the bottom margin print exactly as shown. If Thermer complains, switch “Print as” to Text in ⚙︎ Settings, or tap Share and pick Thermer. Nothing happens? Thermer may not be installed. See setup in ⚙︎ Settings.</p>
+    <p class="hint" id="printHint"></p>
   </main>
 </div>
 
@@ -128,19 +130,34 @@ ol.steps li{margin:4px 0}
   <label for="sTax">Tax %</label><input id="sTax" inputmode="decimal">
   <label for="sW">Printer paper</label>
   <select id="sW"><option value="58">58 mm (small, 32 characters)</option><option value="80">80 mm (wide, 48 characters)</option></select>
-  <label for="sMode">Print as</label>
-  <select id="sMode"><option value="hybrid">Text header + picture body (fastest, recommended)</option><option value="image">One picture (exact layout, slower)</option><option value="text">Text only (may run together)</option></select>
+  <label for="sTransport">Print with</label>
+  <select id="sTransport"><option value="bluetooth">Direct Bluetooth in Bluefy (free + fast)</option><option value="thermer">Thermer app</option></select>
+  <div id="thermerOptions">
+    <label for="sMode">Thermer layout</label>
+    <select id="sMode"><option value="hybrid">Text header + picture body</option><option value="image">One picture (exact layout, slower)</option><option value="text">Text only (may run together)</option></select>
+  </div>
   <label for="sNote">Footer line</label><input id="sNote" maxlength="60">
   <div class="rowin">
     <div style="flex:1"><label for="sTop">Blank lines at top (picture mode)</label><input id="sTop" inputmode="numeric" min="0" max="10"></div>
     <div style="flex:1"><label for="sBot">Blank lines at bottom</label><input id="sBot" inputmode="numeric" min="0" max="10"></div>
   </div>
-  <h2>Printer setup (one time)</h2>
-  <ol class="steps">
-    <li>Turn the printer on. Install <a href="https://apps.apple.com/app/id1599863946" target="_blank" rel="noopener">Thermer</a> on this phone or iPad.</li>
-    <li>In Thermer, connect your Bluetooth printer (allow Bluetooth when asked).</li>
-    <li>Tap the test button below. A sample receipt should print.</li>
-  </ol>
+  <div id="bleSetup">
+    <h2>Direct Bluetooth setup</h2>
+    <ol class="steps">
+      <li>Open this website inside Bluefy, not Safari.</li>
+      <li>Turn on the printer and close Thermer so it releases Bluetooth.</li>
+      <li>Tap Connect, then select the printer.</li>
+    </ol>
+    <button class="ghost" id="connectPrinter">Connect Bluetooth printer</button>
+    <p class="status" id="printerStatus" role="status" aria-live="polite">Not connected</p>
+  </div>
+  <div id="thermerSetup" hidden>
+    <h2>Thermer setup</h2>
+    <ol class="steps">
+      <li>Turn the printer on. Install <a href="https://apps.apple.com/app/id1599863946" target="_blank" rel="noopener">Thermer</a> on this phone or iPad.</li>
+      <li>In Thermer, connect your Bluetooth printer.</li>
+    </ol>
+  </div>
   <button class="ghost" id="testPrint">Print a test receipt</button>
   <button class="cta wide" id="saveSettings">Save</button>
 </div></div></div>
@@ -149,13 +166,23 @@ ol.steps li{margin:4px 0}
 const MENU=[["Manicure",25],["Gel Manicure",40],["Pedicure",35],["Deluxe Pedicure",55],["Full Set Acrylic",60],["Acrylic Fill",40],["Dip Powder",50],["Polish Change",15],["Nail Art",10],["Eyebrow Wax",12]];
 const PAYS=["Cash","Card","Zelle","Venmo"];
 const TIPS=[["No tip",0],["15%",15],["18%",18],["20%",20],["Custom",-1]];
-const DEF={shop:"Lucky Nails",addr:"",phone:"",techs:"Hanh, Linh, Tuyet",tax:0,w:58,note:"Thank you! See you soon.",top:2,bottom:3,mode:"hybrid"};
+const DEF={shop:"Lucky Nails",addr:"",phone:"",techs:"Hanh, Linh, Tuyet",tax:0,w:58,note:"Thank you! See you soon.",top:2,bottom:3,transport:"bluetooth",mode:"hybrid"};
 const $=id=>document.getElementById(id);
 const money=n=>"$"+(Math.round(n*100)/100).toFixed(2);
 
 let S={...DEF};
 try{S={...DEF,...JSON.parse(localStorage.getItem("nail.settings")||"{}")}}catch(e){}
 let cart=new Map(), tech="", tipPct=0, tipCustom=0, pay="Cash", lastEntries=[];
+let bluetoothDevice=null, bluetoothWriter=null, printing=false;
+
+const BLE_PROFILES=[
+  {name:"ISSC UART",service:"49535343-fe7d-4ae5-8fa9-9fafd205e455",write:"49535343-8841-43f4-a8d4-ecbe34729bb3"},
+  {name:"FFE0 UART",service:"0000ffe0-0000-1000-8000-00805f9b34fb",write:"0000ffe1-0000-1000-8000-00805f9b34fb"},
+  {name:"FF00 UART",service:"0000ff00-0000-1000-8000-00805f9b34fb",write:"0000ff02-0000-1000-8000-00805f9b34fb"},
+  {name:"Printer UART",service:"000018f0-0000-1000-8000-00805f9b34fb",write:"00002af1-0000-1000-8000-00805f9b34fb"},
+  {name:"NETUM UART",service:"e7810a71-73ae-499d-8c15-faa9aef0c3f2",write:"bef8d6c9-9c21-4c9e-b632-bd581100031c"},
+  {name:"Nordic UART",service:"6e400001-b5a3-f393-e0a9-e50e24dcca9e",write:"6e400002-b5a3-f393-e0a9-e50e24dcca9e"}
+];
 
 function techList(){return S.techs.split(",").map(s=>s.trim()).filter(Boolean)}
 function subtotal(){let t=0;cart.forEach(v=>t+=v.p*v.q);return t}
@@ -196,6 +223,7 @@ function render(){
   $("sumLine").textContent=count?`${count} service${count>1?"s":""}${tip()?" + "+money(tip())+" tip":""}`:"No services yet";
   $("sumTotal").textContent=money(total());
   $("go").disabled=!count;
+  updatePrintUi();
 }
 
 $("cAdd").onclick=()=>{const n=$("cName").value.trim(),p=parseFloat($("cPrice").value);
@@ -246,8 +274,84 @@ $("go").onclick=openReceipt;
 $("back").onclick=()=>{$("receipt").hidden=true;$("checkout").hidden=false;$("bar").hidden=false};
 $("newSale").onclick=()=>{cart.clear();tipPct=0;tipCustom=0;$("tipCustom").value="";$("back").onclick();render();scrollTo(0,0)};
 
-/* Print: hand the receipt to the Thermer app, which sends it to the Bluetooth printer.
-   Link format from Thermer's iOS sample code: thermer://?data=<JSON keyed "0","1","2"...> */
+/* Direct Bluetooth sends native ESC/POS text, which is dramatically faster than a bitmap.
+   Bluefy supplies navigator.bluetooth on iPhone/iPad. The profiles below cover common BLE
+   UART modules; Bluetooth Classic-only printers still need Thermer or a local print bridge. */
+function setPrinterStatus(message,state=""){
+  const el=$("printerStatus");if(!el)return;el.textContent=message;el.className="status"+(state?" "+state:"");
+}
+function updatePrintUi(){
+  const direct=S.transport!=="thermer",p=$("print"),hint=$("printHint");
+  if(p){p.textContent=direct?"🖨 Print via Bluetooth":"🖨 Print receipt";p.disabled=printing}
+  if(hint)hint.textContent=direct
+    ?"Direct mode sends fast native text with no Thermer limits. Open this page in Bluefy and connect the printer once per session."
+    :"Thermer mode opens the Thermer app. Use Direct Bluetooth in Settings for free, faster native-text printing.";
+}
+function showPrinterSetup(){
+  const direct=$("sTransport").value!=="thermer";
+  $("bleSetup").hidden=!direct;$("thermerSetup").hidden=direct;$("thermerOptions").hidden=direct;
+}
+async function connectBluetoothPrinter(){
+  if(!navigator.bluetooth)throw new Error("Bluetooth is unavailable. Open this website inside the Bluefy app, not Safari.");
+  setPrinterStatus("Looking for nearby printers…");
+  const device=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:BLE_PROFILES.map(p=>p.service)});
+  setPrinterStatus(`Connecting to ${device.name||"printer"}…`);
+  const server=await device.gatt.connect();
+  let writer=null,matched=null;
+  for(const profile of BLE_PROFILES){
+    try{
+      const service=await server.getPrimaryService(profile.service);
+      try{writer=await service.getCharacteristic(profile.write)}catch(e){
+        const chars=await service.getCharacteristics();
+        writer=chars.find(c=>c.properties.writeWithoutResponse||c.properties.write)||null;
+      }
+      if(writer){matched=profile;break}
+    }catch(e){}
+  }
+  if(!writer){device.gatt.disconnect();throw new Error("Printer found, but its Bluetooth service is not supported yet. Send a screenshot of its services from nRF Connect.")}
+  bluetoothDevice=device;bluetoothWriter=writer;
+  device.addEventListener("gattserverdisconnected",()=>{bluetoothWriter=null;setPrinterStatus("Printer disconnected")},{once:true});
+  setPrinterStatus(`Connected: ${device.name||matched.name}`,"ok");
+  $("connectPrinter").textContent="Reconnect Bluetooth printer";
+  return writer;
+}
+function asciiBytes(text){
+  const safe=text.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\x20-\x7E\n]/g,"?");
+  return new TextEncoder().encode(safe);
+}
+function escPosReceipt(entries){
+  const out=[],add=(...bytes)=>out.push(...bytes),text=value=>add(...asciiBytes(value));
+  add(0x1b,0x40);
+  entries.forEach(e=>{
+    add(0x1b,0x61,e.align==1?1:e.align==2?2:0);
+    add(0x1b,0x45,e.bold?1:0);
+    add(0x1b,0x4d,e.format==4?1:0);
+    add(0x1d,0x21,e.format==2?0x11:e.format==1?0x01:e.format==3?0x10:0x00);
+    text(e.content||" ");add(0x0a);
+  });
+  add(0x1b,0x45,0,0x1d,0x21,0,0x1b,0x61,0);
+  return new Uint8Array(out);
+}
+async function writeBluetooth(bytes){
+  if(!bluetoothWriter||!bluetoothDevice?.gatt?.connected)await connectBluetoothPrinter();
+  const chunkSize=100,wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  for(let i=0;i<bytes.length;i+=chunkSize){
+    const chunk=bytes.slice(i,i+chunkSize);
+    if(bluetoothWriter.properties.writeWithoutResponse&&bluetoothWriter.writeValueWithoutResponse)await bluetoothWriter.writeValueWithoutResponse(chunk);
+    else if(bluetoothWriter.writeValueWithResponse)await bluetoothWriter.writeValueWithResponse(chunk);
+    else await bluetoothWriter.writeValue(chunk);
+    if(i+chunkSize<bytes.length)await wait(25);
+  }
+  await wait(250);
+}
+function printError(error){
+  const cancelled=error?.name==="NotFoundError";
+  const message=cancelled?"No printer selected.":(error?.message||"Printing failed.");
+  setPrinterStatus(message,cancelled?"":"err");
+  if(!cancelled)alert(message);
+}
+
+/* Thermer fallback. Link format: thermer://?data=<JSON keyed "0","1","2"...> */
 /* Thermer's free plan prints at most 5 entries per receipt, so the lines are packed into
    at most 5 blocks: top spacing, shop name, body, TOTAL, footer. Every body line is padded to the full paper width,
    so each row lands on its own printed line whether or not the app keeps the "\n" between them. */
@@ -263,10 +367,16 @@ function packEntries(entries,w){
    text entries, which is why the text mode is only a fallback. */
 /* "hybrid" uses the 3 entries the free plan allows: one blank text line, the shop name as
    printer-font text (fast), and a shorter picture of everything below it. */
-async function sendToPrinter(entries,w){
+async function sendToPrinter(entries,w,transport=S.transport,mode=S.mode){
+  if(transport!=="thermer"){
+    printing=true;updatePrintUi();setPrinterStatus("Sending receipt…");
+    try{await writeBluetooth(escPosReceipt(entries));setPrinterStatus("Receipt sent to printer","ok")}
+    finally{printing=false;updatePrintUi()}
+    return;
+  }
   let packed;
-  if(S.mode==="text") packed=packEntries(entries,+w===80?48:32);
-  else if(S.mode==="hybrid"){
+  if(mode==="text") packed=packEntries(entries,+w===80?48:32);
+  else if(mode==="hybrid"){
     const i=entries.findIndex(e=>e.format&&e.align==1), head=entries[i], url=await receiptPng(entries.slice(i+1),w);
     packed=[{type:0,content:" ",bold:0,align:0},head,{type:1,path:url,content:url,align:1}];
   }
@@ -274,9 +384,10 @@ async function sendToPrinter(entries,w){
   const json=JSON.stringify(Object.fromEntries(packed.map((e,i)=>[i,e])));
   location.href="thermer://?data="+encodeURIComponent(json);
 }
-$("print").onclick=()=>sendToPrinter(lastEntries,S.w);
+$("print").onclick=()=>sendToPrinter(lastEntries,S.w).catch(printError);
+$("connectPrinter").onclick=()=>connectBluetoothPrinter().catch(printError);
 $("testPrint").onclick=()=>sendToPrinter(buildEntries({shop:$("sShop").value||"Lucky Nails",addr:$("sAddr").value,phone:$("sPhone").value,
-  note:"Test print OK",w:+$("sW").value,top:+$("sTop").value||0,bottom:+$("sBot").value||0,tax:0,tech:"Demo",pay:"Cash",tip:15,id:"TEST",ts:"Test print",items:[{n:"Gel Manicure",p:40,q:1},{n:"Pedicure",p:35,q:1}]}),$("sW").value);
+  note:"Test print OK",w:+$("sW").value,top:+$("sTop").value||0,bottom:+$("sBot").value||0,tax:0,tech:"Demo",pay:"Cash",tip:15,id:"TEST",ts:"Test print",items:[{n:"Gel Manicure",p:40,q:1},{n:"Pedicure",p:35,q:1}]}),$("sW").value,$("sTransport").value,$("sMode").value).catch(printError);
 
 /* Backup path: make a picture of the receipt, share it to Thermer (or anywhere). */
 function receiptCanvas(entries,w){
@@ -321,13 +432,15 @@ $("share").onclick=async()=>{
 };
 
 /* ---------- settings ---------- */
-const FIELDS={sShop:"shop",sAddr:"addr",sPhone:"phone",sTechs:"techs",sTax:"tax",sW:"w",sNote:"note",sTop:"top",sBot:"bottom",sMode:"mode"};
-$("openSettings").onclick=()=>{for(const id in FIELDS)$(id).value=S[FIELDS[id]];$("sheet").classList.add("open")};
+const FIELDS={sShop:"shop",sAddr:"addr",sPhone:"phone",sTechs:"techs",sTax:"tax",sW:"w",sNote:"note",sTop:"top",sBot:"bottom",sTransport:"transport",sMode:"mode"};
+$("openSettings").onclick=()=>{for(const id in FIELDS)$(id).value=S[FIELDS[id]];showPrinterSetup();$("sheet").classList.add("open")};
 $("closeSettings").onclick=()=>$("sheet").classList.remove("open");
 $("sheet").onclick=e=>{if(e.target===$("sheet"))$("closeSettings").onclick()};
+$("sTransport").onchange=showPrinterSetup;
 $("saveSettings").onclick=()=>{for(const id in FIELDS)S[FIELDS[id]]=$(id).value.trim();
   S.tax=Math.min(30,Math.max(0,parseFloat(S.tax)||0));S.w=+S.w===80?80:58;
-  const lines=v=>Math.min(10,Math.max(0,parseInt(v,10)||0));S.top=lines(S.top);S.bottom=lines(S.bottom);S.mode=["text","image"].includes(S.mode)?S.mode:"hybrid";
+  const lines=v=>Math.min(10,Math.max(0,parseInt(v,10)||0));S.top=lines(S.top);S.bottom=lines(S.bottom);
+  S.transport=S.transport==="thermer"?"thermer":"bluetooth";S.mode=["text","image"].includes(S.mode)?S.mode:"hybrid";
   try{localStorage.setItem("nail.settings",JSON.stringify(S))}catch(e){}
   $("closeSettings").onclick();render();if(!$("receipt").hidden)openReceipt()};
 render();
